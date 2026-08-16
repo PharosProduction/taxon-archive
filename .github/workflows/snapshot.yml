@@ -106,7 +106,18 @@ jobs:
           # Signed tags per snapshot are required by the archive design, but tag signing
           # needs a key in secrets. Until that is configured this is an annotated tag,
           # which still pins the tree. Do not remove the tag: it is the archive index.
-          git tag -a "snapshot-${{ steps.fetch.outputs.day }}" \
-            -m "ESMA MiCA register, retrieved ${{ steps.fetch.outputs.day }}"
+          #
+          # The tag is created only if absent. A second run on the same day is a normal
+          # event (manual dispatch, or a retry after a transient ESMA failure) and it must
+          # not turn into a red build: re-tagging would fail under `set -e` after the
+          # commit already existed. The existing tag keeps pointing at the earlier tree,
+          # which is correct, because snapshots are immutable and a later capture on the
+          # same day is a new commit rather than a replacement.
+          TAG="snapshot-${{ steps.fetch.outputs.day }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "tag $TAG already exists, leaving it where it points"
+          else
+            git tag -a "$TAG" -m "ESMA MiCA register, retrieved ${{ steps.fetch.outputs.day }}"
+          fi
           git push
           git push --tags
