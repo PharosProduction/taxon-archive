@@ -1,5 +1,5 @@
 {
-  "retrieved_at": "2026-08-16T16:11:19Z",
+  "retrieved_at": "2026-08-16T16:13:09Z",
   "source_base": "https://www.esma.europa.eu/sites/default/files/2024-12",
   "files": {
     "CASPS": {"http": "200", "sha256": "6695cd09464c354a58250fc49dddd87eb0663f5254bac8924e144025c5938a11", "bytes": 161380, "lines": 386},
