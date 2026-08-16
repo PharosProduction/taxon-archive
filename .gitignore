@@ -1,0 +1,11 @@
+# os
+.DS_Store
+Thumbs.db
+
+# editors
+.idea/
+.vscode/
+*.swp
+
+# NOT ignored, deliberately: data/snapshots/
+# The snapshot archive is the point of this repository. It is append-only, committed and tagged.

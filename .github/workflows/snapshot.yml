@@ -1,0 +1,112 @@
+name: ESMA register snapshot
+
+# Weekly append-only snapshot of the five ESMA interim MiCA register files.
+#
+# WHY THIS EXISTS:
+# ESMA overwrites these files in place and keeps no history. The Internet Archive's coverage
+# is thin and uneven (measured 2026-08-16: OTHER.csv 68 captures, NCASP 7, EMTWP 8, ARTZZ 2
+# distinct versions, CASPS unmeasurable). History cannot be reconstructed after the fact at
+# any price, so every week without this workflow is a week permanently lost.
+#
+# This job is deliberately dumb: fetch, hash, commit. No parsing, no classification, no
+# rendering. Those belong to the pipeline proper. Nothing here should ever be made clever
+# enough to fail.
+
+on:
+  schedule:
+    # Mondays 06:15 UTC. ESMA publishes weekly with no fixed hour, so we run after the
+    # weekend and accept that some weeks capture the previous version. A duplicate hash
+    # is recorded, not skipped: knowing the file did not change is itself data.
+    - cron: '15 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: esma-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the five register files
+        id: fetch
+        run: |
+          set -uo pipefail
+          BASE="https://www.esma.europa.eu/sites/default/files/2024-12"
+          STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          DAY="$(date -u +%Y-%m-%d)"
+          DIR="data/snapshots/${DAY}"
+          mkdir -p "$DIR"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "day=$DAY"  >> "$GITHUB_OUTPUT"
+
+          MANIFEST="$DIR/manifest.json"
+          echo "{" > "$MANIFEST"
+          echo "  \"retrieved_at\": \"$STAMP\"," >> "$MANIFEST"
+          echo "  \"source_base\": \"$BASE\"," >> "$MANIFEST"
+          echo "  \"files\": {" >> "$MANIFEST"
+
+          FIRST=1
+          for F in CASPS NCASP ARTZZ EMTWP OTHER; do
+            # -f so a 4xx/5xx does not silently produce an error page we would then hash.
+            # Failure is recorded as a state, never as a crash: a register that goes missing
+            # is exactly the kind of event this archive exists to capture.
+            CODE=$(curl -sS -f -m 120 --retry 3 --retry-delay 10 \
+                     -w '%{http_code}' \
+                     -H 'User-Agent: Taxon register archiver (+https://pharosproduction.com)' \
+                     -o "$DIR/$F.csv" "$BASE/$F.csv" 2>/dev/null) || CODE="000"
+
+            if [ -s "$DIR/$F.csv" ]; then
+              SHA=$(sha256sum "$DIR/$F.csv" | cut -d' ' -f1)
+              BYTES=$(wc -c < "$DIR/$F.csv" | tr -d ' ')
+              LINES=$(wc -l < "$DIR/$F.csv" | tr -d ' ')
+            else
+              SHA=""; BYTES=0; LINES=0
+              rm -f "$DIR/$F.csv"
+            fi
+
+            [ $FIRST -eq 0 ] && echo "," >> "$MANIFEST"
+            FIRST=0
+            printf '    "%s": {"http": "%s", "sha256": "%s", "bytes": %s, "lines": %s}' \
+              "$F" "$CODE" "$SHA" "$BYTES" "$LINES" >> "$MANIFEST"
+            echo "$F: http=$CODE bytes=$BYTES lines=$LINES sha=${SHA:0:12}"
+          done
+
+          echo "" >> "$MANIFEST"
+          echo "  }" >> "$MANIFEST"
+          echo "}" >> "$MANIFEST"
+
+      - name: Snapshot the register page itself
+        # FR-P-08: ESMA's own page still promises integration "into ESMA's IT systems" by
+        # mid-2026, a date that has passed. Any change to that page is an alert condition,
+        # so the page is part of the snapshot, not a separate concern.
+        run: |
+          curl -sS -f -m 60 --retry 2 \
+            -H 'User-Agent: Taxon register archiver (+https://pharosproduction.com)' \
+            -o "${{ steps.fetch.outputs.dir }}/register-page.html" \
+            "https://www.esma.europa.eu/esmas-activities/digital-finance-and-innovation/markets-crypto-assets-regulation-mica" \
+            || echo "register page fetch failed, recorded as absent"
+
+      - name: Commit the snapshot
+        run: |
+          set -e
+          git config user.name  "taxon-archiver"
+          git config user.email "noreply@pharosproduction.com"
+          git add data/snapshots
+          if git diff --cached --quiet; then
+            echo "no change to commit"
+            exit 0
+          fi
+          git commit -m "snapshot: ESMA MiCA register ${{ steps.fetch.outputs.day }}"
+          # Signed tags per snapshot are required by the archive design, but tag signing
+          # needs a key in secrets. Until that is configured this is an annotated tag,
+          # which still pins the tree. Do not remove the tag: it is the archive index.
+          git tag -a "snapshot-${{ steps.fetch.outputs.day }}" \
+            -m "ESMA MiCA register, retrieved ${{ steps.fetch.outputs.day }}"
+          git push
+          git push --tags
