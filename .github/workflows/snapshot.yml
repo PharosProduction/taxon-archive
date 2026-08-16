@@ -31,7 +31,7 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Fetch the five register files
         id: fetch
@@ -113,6 +113,11 @@ jobs:
           # commit already existed. The existing tag keeps pointing at the earlier tree,
           # which is correct, because snapshots are immutable and a later capture on the
           # same day is a new commit rather than a replacement.
+          # actions/checkout fetches one commit and no tags, so without this the guard below
+          # always sees an empty tag namespace, creates the tag on the new commit, and then
+          # `git push --tags` is rejected because the remote already has it. Fetch first.
+          git fetch --tags --quiet origin
+
           TAG="snapshot-${{ steps.fetch.outputs.day }}"
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             echo "tag $TAG already exists, leaving it where it points"
