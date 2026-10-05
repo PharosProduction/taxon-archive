@@ -1,0 +1,11 @@
+{
+  "retrieved_at": "2026-10-05T14:33:10Z",
+  "source_base": "https://www.esma.europa.eu/sites/default/files/2024-12",
+  "files": {
+    "CASPS": {"http": "200", "sha256": "73d0dd02ff9e0181e51e528ab4a19b7aae8a2c207345b3bc264274103f0bd164", "bytes": 174895, "lines": 434},
+    "NCASP": {"http": "200", "sha256": "ce2399201eb4e180901782734237971cb9239e55aa857a2c1aafab88e7ee9a21", "bytes": 27052, "lines": 174},
+    "ARTZZ": {"http": "200", "sha256": "fa1ef4da123e3d49642c69f90a81a88f6c2cc2a0b9471b2108e4dfc635ca7c67", "bytes": 276, "lines": 1},
+    "EMTWP": {"http": "200", "sha256": "5d63159cf4a5f11ffff065d0a48cc84384c7e7bd4a5c4d1e4896ddf3f2c198c3", "bytes": 17957, "lines": 58},
+    "OTHER": {"http": "200", "sha256": "556db62050a19f3d4fc6a139e97eb4b309ff9fd1fdd92c06fd6b34775cb3c990", "bytes": 236166, "lines": 1067}
+  }
+}
